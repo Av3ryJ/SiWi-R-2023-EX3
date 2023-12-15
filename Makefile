@@ -1,11 +1,11 @@
 CXX = mpicxx
-CXXFLAGS = -std=c++11 -Wall
+CXXFLAGS = -std=c++17 -Wall -Wextra -Wshadow -Werror -O3 -DNDEBUG
 
 INCLUDES =
 LDFLAGS =
 LIBS =
 
-TARGET =
+TARGET = cg
 OBJS = $(TARGET).o
 
 all: $(TARGET)

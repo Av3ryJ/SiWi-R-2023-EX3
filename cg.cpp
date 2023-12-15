@@ -50,7 +50,11 @@ double calculateResidual(double* values, double* f, int nx, int ny, double alpha
 }
 
 int main(int argc, char* argv[]){
-    //... initialisieren
+    std::cout << "argc = " << argc << std::endl;
+    
+    for (int i = 0; i < argc; i++) {
+        std::cout << "argument " << i << " = " << argv[i] << std::endl;
+    }
 
     //Timing start
     double time = 100.0;
