@@ -42,7 +42,7 @@ double calculateResidual(double* values, double* f, int nx, int ny, double alpha
                             +gamma*values[(col-1) + row*rowlength]
                             +gamma*values[(col+1) + row*rowlength]
                             +beta*values[col + (row-1)*rowlength]
-                            +beta* values[col + (row+1)*rowlength];;
+                            +beta* values[col + (row+1)*rowlength];
             sum += residual*residual;
         }
     }
@@ -50,11 +50,23 @@ double calculateResidual(double* values, double* f, int nx, int ny, double alpha
 }
 
 int main(int argc, char* argv[]){
-    std::cout << "argc = " << argc << std::endl;
-    
-    for (int i = 0; i < argc; i++) {
-        std::cout << "argument " << i << " = " << argv[i] << std::endl;
+    if (argc < 5) {
+        std::cout << "Usage: (mpirun -np <N>) ./cg <nx> <ny> <c> <eps>" << std::endl;
+        return -1;
     }
+
+    int nx = atoi(argv[1]);
+    int ny = atoi(argv[2]);
+    int c = atoi(argv[3]);
+    double eps = atof(argv[4]);
+
+    // nx und ny gibt Anzahl der Intervalle an, die entstehen -> es gibt nx+1 & ny+1 Punkte in jede Richtung
+    double hx = 2.0/nx; // lenght of one intervall in x-direction
+    double hy = 1.0/ny; // lenght of one intervall in y-direction
+    double hx_squared = hx*hx;
+    double hy_squared = hy*hy;
+    double pi_squared = M_PI*M_PI;
+    int rowlength = nx+1;
 
     //Timing start
     double time = 100.0;
