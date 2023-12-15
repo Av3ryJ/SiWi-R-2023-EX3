@@ -1,4 +1,3 @@
-#include <omp.h>
 #include <math.h>
 #include <iostream>
 #include <fstream>
@@ -18,7 +17,6 @@ void print_matrix(int nx, int ny, double *v) {
 // Initialisieren der Matrix
 void initialize(int nx, int ny, double *v, double hx){
     double sinhyb = sinh(2*M_PI);
-    #pragma omp parallel for
     for(int y=0; y<=ny; ++y){
         for(int x=0; x<=nx; ++x){
             if(y==ny){
@@ -30,23 +28,31 @@ void initialize(int nx, int ny, double *v, double hx){
     }
 }
 
-// Berechnung der L2-Norm des Residuums
-// Residuum = Abweichung der angenäherten Lösung von den "richtigen" Funktionswerten 
-// Norm = Wurzel aus summierten, quadrierten Residuuen der einzelnen Punkte durch Anzahl aller inneren Punkte
-double calculateResidual(double* values, double* f, int nx, int ny, double alpha, double beta, double gamma,int rowlength ) {
-    double factor = 1.0/sqrt((nx-2)*(ny-2));
-    double sum = 0;
-    for (int row = 1; row < ny-1; row++) {
-        for (int col = 1; col < nx-1; col++) {
-            double residual = f[row*nx + col] - alpha*values[row*nx + col]
+void calculateResidualVector(double *values, double *f, int nx, int ny, double alpha, double beta, double gamma, double *result) {
+    int rowlength = nx+1;
+    for (int row = 1; row < ny; row++) {
+        for (int col = 1; col < nx; col++) {
+            result[row-1] = f[row*nx + col] - alpha*values[row*nx + col]
                             +gamma*values[(col-1) + row*rowlength]
                             +gamma*values[(col+1) + row*rowlength]
                             +beta*values[col + (row-1)*rowlength]
                             +beta* values[col + (row+1)*rowlength];
-            sum += residual*residual;
         }
     }
-    return factor*sqrt(sum);
+}
+
+double vectorDotProduct(double* vec1, double* vec2, int length) {
+    double sum = 0;
+    for (int i = 0; i < length; i++) {
+        sum += vec1[i]*vec2[i];
+    }
+    return sum;
+}
+
+void vectorPlusScaledVector(double *vec1, double scalingFactor, double *vec2, double *outVec, int length) {
+    for (int i = 0; i < length; i++) {
+        outVec[i] = vec1[i] + scalingFactor*vec2[i];
+    }
 }
 
 int main(int argc, char* argv[]){
@@ -66,13 +72,47 @@ int main(int argc, char* argv[]){
     double hx_squared = hx*hx;
     double hy_squared = hy*hy;
     double pi_squared = M_PI*M_PI;
-    int rowlength = nx+1;
+    int numberOfInnerGridPoints = (nx-1)*(ny-1);
+    //Vorfaktoren der Diskretisierung
+    double alpha = 2/hx_squared + 2/hy_squared + 4*pi_squared;
+    double beta = 1/hx_squared;
+    double gamma = 1/hy_squared;
+
+    //Gitter mit Werten und Rand
+    double *values = new double[(nx+1)*(ny+1)];
+    initialize(nx, ny, values, hx);
+
+    // richtige Funktionswerte
+    double *f= new double[(nx+1)*(ny+1)];
+    for(int y=0; y<=ny; y++){
+        for(int x=0; x<=nx; x++){
+            f[y*(nx+1)+x]= 4*pi_squared*sin(2*M_PI*x*hx)*sinh(2*M_PI*y*hy); 
+        }
+    }
 
     //Timing start
     double time = 100.0;
     siwir::Timer timer;
 
-    //Berechnung
+    //Berechnung...
+    double* residuum = new double[numberOfInnerGridPoints];
+    calculateResidualVector(values, f, nx, ny, alpha, beta, gamma, residuum);
+    double delta0 = vectorDotProduct(residuum, residuum, numberOfInnerGridPoints);
+    if (sqrt(delta0) > eps) {
+        double *d = residuum;
+        for (int count = 0; count < c; count++) {
+            //double *z = A*d; //implementierung?
+            //double alpha = delta0 / vectorDotProduct(d, z, numberOfInnerGridPoints);
+            //vectorPlusScaledVector(values, alpha, d, values, numberOfInnerGridPoints); //RAND BEACHTEN!!!
+            //vectorPlusScaledVector(residuum, -alpha, z, residuum, numberOfInnerGridPoints);
+            //double delta1 = vectorDotProduct(residuum, residuum, numberOfInnerGridPoints);
+            //if (delta1 <= eps) break;
+            //double b = delta1/delta0;
+            //d = residuum + b * d;
+            //vectorPlusScaledVector(residuum, b, d, d, numberOfInnerGridPoints);
+            //delta0 = delta1; 
+        }
+    }
 
     //Timing stoppen & ausgeben
     time = std::min(time, timer.elapsed());
@@ -88,13 +128,12 @@ int main(int argc, char* argv[]){
     // .. .. .. 
     
     //x und y Werte müssen in dem definierten Bereich liegen -> [0,1] und[0,2]
-    /*std::ofstream fileO ("solution.txt");
+    std::ofstream fileO ("solution.txt");
         fileO << "# x y u(x,y)"<< std::endl;
         for (int col = 0; col < nx+1; col++) {
             for (int row = 0; row < ny+1; row++) {
-               fileO << col*hx << " " << row*hy << " " << values[row*(nx+1) + col] << std::endl;
+               //fileO << col*hx << " " << row*hy << " " << values[row*(nx+1) + col] << std::endl;
             }
         }
         fileO.close();
-    */
 }
