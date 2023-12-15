@@ -1,0 +1,28 @@
+Sends:
+
+                Buffered            Synchronous
+            
+                                                       -->  resources (buffer) can be reused
+                                                            right after the call returns
+blocking        Bsend               Ssend                   send:   data arrived at destination / 
+                (local)             (non-local)                     completely copied to temp.buffer
+                                                            rec:    message completely arrived
+                
+                                                            
+                                                        --> resources (buffer) maybe CANNOT be reused
+non-blocking    Ibsend              Issend                  right after call returns
+                (local)             (local)                 Check completion of call with MPI_Test() 
+                                                            or MPI_WAIT()
+
+
+
+
+Receives:
+
+blocking        Receive                                 
+                (non-local)
+
+
+non-blocking    Ireceive                                --> MPI_Probe() (blocking receiving test)
+                (local)                                     MPI_Iprobe() (non-blocking test)
+                                                                        

@@ -1,0 +1,6 @@
+
+compile: make TARGET=MPI_HelloWorld
+
+run: mpirun -np {numProcesses} ./MPI_HelloWorld
+
+
