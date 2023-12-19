@@ -32,6 +32,7 @@ void calculateResidualVector(double *values, double *f, int nx, int ny, double a
     int rowlength = nx+1;
     for (int row = 1; row < ny; row++) {
         for (int col = 1; col < nx; col++) {
+            //warum result[row-1]?
             result[row-1] = f[row*nx + col] - alpha*values[row*nx + col]
                             +gamma*values[(col-1) + row*rowlength]
                             +gamma*values[(col+1) + row*rowlength]
@@ -55,6 +56,22 @@ void vectorPlusScaledVector(double *vec1, double scalingFactor, double *vec2, do
     }
 }
 
+void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta, double gamma, double *z){
+    int rowlength = nx+1;
+    
+    for (int row = 1; row < ny; row++) {
+        for (int col = 1; col < nx; col++) {
+            //z[row-1] stimmt glaube nicht
+           z[row-1]= alpha*values[row*nx + col]
+                            +gamma*values[(col-1) + row*rowlength]
+                            +gamma*values[(col+1) + row*rowlength]
+                            +beta*values[col + (row-1)*rowlength]
+                            +beta* values[col + (row+1)*rowlength];
+        }
+    }
+}
+
+
 int main(int argc, char* argv[]){
     if (argc < 5) {
         std::cout << "Usage: (mpirun -np <N>) ./cg <nx> <ny> <c> <eps>" << std::endl;
@@ -75,8 +92,9 @@ int main(int argc, char* argv[]){
     int numberOfInnerGridPoints = (nx-1)*(ny-1);
     //Vorfaktoren der Diskretisierung
     double alpha = 2/hx_squared + 2/hy_squared + 4*pi_squared;
-    double beta = 1/hx_squared;
-    double gamma = 1/hy_squared;
+    //Korrektur von A2 gamme & beta vertauscht
+    double gamma = 1/hx_squared;
+    double beta = 1/hy_squared;
 
     //Gitter mit Werten und Rand
     double *values = new double[(nx+1)*(ny+1)];
@@ -95,22 +113,22 @@ int main(int argc, char* argv[]){
     siwir::Timer timer;
 
     //Berechnung...
-    double* residuum = new double[numberOfInnerGridPoints];
-    calculateResidualVector(values, f, nx, ny, alpha, beta, gamma, residuum);
-    double delta0 = vectorDotProduct(residuum, residuum, numberOfInnerGridPoints);
-    if (sqrt(delta0) > eps) {
-        double *d = residuum;
-        for (int count = 0; count < c; count++) {
-            //double *z = A*d; //implementierung?
-            //double alpha = delta0 / vectorDotProduct(d, z, numberOfInnerGridPoints);
-            //vectorPlusScaledVector(values, alpha, d, values, numberOfInnerGridPoints); //RAND BEACHTEN!!!
-            //vectorPlusScaledVector(residuum, -alpha, z, residuum, numberOfInnerGridPoints);
-            //double delta1 = vectorDotProduct(residuum, residuum, numberOfInnerGridPoints);
-            //if (delta1 <= eps) break;
-            //double b = delta1/delta0;
-            //d = residuum + b * d;
-            //vectorPlusScaledVector(residuum, b, d, d, numberOfInnerGridPoints);
-            //delta0 = delta1; 
+    double* residuum = new double[numberOfInnerGridPoints]; 
+    calculateResidualVector(values, f, nx, ny, alpha, beta, gamma, residuum);//r=f-A*u
+    double delta0 = vectorDotProduct(residuum, residuum, numberOfInnerGridPoints); //delt0= rt*r
+    if (sqrt(delta0) > eps) { // Stop condition: ||r||<= eps
+        double* d = residuum; //d=r
+        for (int count = 0; count < c; count++) { //iterations
+            double* z =  new double[numberOfInnerGridPoints];
+            stencilVectorMul(d, nx,ny, alpha, beta, gamma, z ); //z= A*d
+            double a = delta0 / vectorDotProduct(d, z, numberOfInnerGridPoints); // a = delt0/(dt*z)
+            vectorPlusScaledVector(values, a, d, values, numberOfInnerGridPoints); //RAND BEACHTEN!!!, u= u+a*d
+            vectorPlusScaledVector(residuum, -a, z, residuum, numberOfInnerGridPoints);//r= r-a*z
+            double delta1 = vectorDotProduct(residuum, residuum, numberOfInnerGridPoints);//delt1=rt*r
+            if (sqrt(delta1) <= eps) break; //stop condition: ||r||<=eps
+            double b = delta1/delta0; // b= delt1/delt2
+            vectorPlusScaledVector(residuum, b, d, d, numberOfInnerGridPoints); //d= r+b*d
+            delta0 = delta1; //delt0= delt1
         }
     }
 
