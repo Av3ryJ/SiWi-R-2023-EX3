@@ -29,6 +29,7 @@ void initialize(int nx, int ny, double *v, double hx){
 }
 
 void calculateResidualVector(double *values, double *f, int nx, int ny, double alpha, double beta, double gamma, double *result) {
+    std::cout << "calculateResidual -start" << " " << nx << " "  << ny;
     int rowlength = nx+1;
     for (int row = 1; row < ny; row++) {
         for (int col = 1; col < nx; col++) {
@@ -40,6 +41,7 @@ void calculateResidualVector(double *values, double *f, int nx, int ny, double a
                             +beta* values[col + (row+1)*rowlength];
         }
     }
+    std::cout << "calculateResidual -end";
 }
 
 double vectorDotProduct(double* vec1, double* vec2, int length) {
@@ -57,6 +59,7 @@ void vectorPlusScaledVector(double *vec1, double scalingFactor, double *vec2, do
 }
 
 void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta, double gamma, double *z){
+    std::cout << "stenciVectorMul -start" << " " << nx << " "  << ny;
     int rowlength = nx+1;
     
     for (int row = 1; row < ny; row++) {
@@ -69,10 +72,12 @@ void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta,
                             +beta* values[col + (row+1)*rowlength];
         }
     }
+    std::cout << "stencilVektorMul-end";
 }
 
 
 int main(int argc, char* argv[]){
+    std::cout << "hello";
     if (argc < 5) {
         std::cout << "Usage: (mpirun -np <N>) ./cg <nx> <ny> <c> <eps>" << std::endl;
         return -1;
