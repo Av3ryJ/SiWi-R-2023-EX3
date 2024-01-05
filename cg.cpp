@@ -30,14 +30,13 @@ void initialize(int nx, int ny, double *v, double hx){
 
 void calculateResidualVector(double *values, double *f, int nx, int ny, double alpha, double beta, double gamma, double *result) {
     int rowlength = nx+1;
-    for (int row = 1; row < ny; row++) {
-        for (int col = 1; col < nx; col++) {
-            //warum result[row-1]?
-            result[row*nx+col] = f[row*nx + col] - alpha*values[row*nx + col]
-                            +gamma*values[(col-1) + row*rowlength]
-                            +gamma*values[(col+1) + row*rowlength]
-                            +beta*values[col + (row-1)*rowlength]
-                            +beta* values[col + (row+1)*rowlength];
+    for (int row = 0; row <= ny; row++) {
+        for (int col = 0; col <= nx; col++) {
+            if (row == 0 || row == ny || col == 0 || col == nx) result[row*rowlength+col] = 0;
+            else result[row*rowlength+col] = f[row*rowlength + col] 
+                    -alpha*values[row*rowlength + col] + gamma*values[(col-1) + row*rowlength]
+                    +gamma*values[(col+1) + row*rowlength] + beta*values[col + (row-1)*rowlength]
+                    +beta*values[col + (row+1)*rowlength];
         }
     }
 }
@@ -58,19 +57,16 @@ void vectorPlusScaledVector(double *vec1, double scalingFactor, double *vec2, do
 
 void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta, double gamma, double *z){
     int rowlength = nx+1;
-    
     for (int row = 1; row < ny; row++) {
         for (int col = 1; col < nx; col++) {
-            //z[row-1] stimmt glaube nicht
-           z[row*nx+col]= alpha*values[row*nx + col]
-                            +gamma*values[(col-1) + row*rowlength]
-                            +gamma*values[(col+1) + row*rowlength]
-                            +beta*values[col + (row-1)*rowlength]
-                            +beta* values[col + (row+1)*rowlength];
+           z[row*rowlength+col]= alpha*values[row*rowlength + col]
+                                    +gamma*values[(col-1) + row*rowlength]
+                                    +gamma*values[(col+1) + row*rowlength]
+                                    +beta*values[col + (row-1)*rowlength]
+                                    +beta* values[col + (row+1)*rowlength];
         }
     }
 }
-
 
 int main(int argc, char* argv[]){
     if (argc < 5) {
@@ -89,7 +85,7 @@ int main(int argc, char* argv[]){
     double hx_squared = hx*hx;
     double hy_squared = hy*hy;
     double pi_squared = M_PI*M_PI;
-    int numberOfInnerGridPoints = (nx-1)*(ny-1);
+    int numberOfGridPoints = (nx+1)*(ny+1);
     //Vorfaktoren der Diskretisierung
     double alpha = 2/hx_squared + 2/hy_squared + 4*pi_squared;
     //Korrektur von A2 gamma & beta vertauscht
@@ -97,11 +93,11 @@ int main(int argc, char* argv[]){
     double beta = 1/hy_squared;
 
     //Gitter mit Werten und Rand
-    double *values = new double[(nx+1)*(ny+1)];
+    double *values = new double[numberOfGridPoints];
     initialize(nx, ny, values, hx);
 
     // richtige Funktionswerte
-    double *f= new double[(nx+1)*(ny+1)];
+    double *f= new double[numberOfGridPoints];
     for(int y=0; y<=ny; y++){
         for(int x=0; x<=nx; x++){
             f[y*(nx+1)+x]= 4*pi_squared*sin(2*M_PI*x*hx)*sinh(2*M_PI*y*hy); 
@@ -113,21 +109,24 @@ int main(int argc, char* argv[]){
     siwir::Timer timer;
 
     //Berechnung...
-    double* residuum = new double[numberOfInnerGridPoints]; 
+    double* residuum = new double[numberOfGridPoints]; 
     calculateResidualVector(values, f, nx, ny, alpha, beta, gamma, residuum);//r=f-A*u
-    double delta0 = vectorDotProduct(residuum, residuum, numberOfInnerGridPoints); //delt0= rt*r
+    double delta0 = vectorDotProduct(residuum, residuum, numberOfGridPoints); //delt0= rt*r
     if (sqrt(delta0) > eps) { // Stop condition: ||r||<= eps
-        double* d = residuum; //d=r
+        double* d = new double[numberOfGridPoints];
+        for (int i = 0; i < numberOfGridPoints; i++) {
+            d[i] = residuum[i];
+        } //d=r
         for (int count = 0; count < c; count++) { //iterations
-            double* z =  new double[numberOfInnerGridPoints];
+            double* z =  new double[numberOfGridPoints];
             stencilVectorMul(d, nx,ny, alpha, beta, gamma, z ); //z= A*d
-            double a = delta0 / vectorDotProduct(d, z, numberOfInnerGridPoints); // a = delt0/(dt*z)
-            vectorPlusScaledVector(values, a, d, values, numberOfInnerGridPoints); //RAND BEACHTEN!!!, u= u+a*d
-            vectorPlusScaledVector(residuum, -a, z, residuum, numberOfInnerGridPoints);//r= r-a*z
-            double delta1 = vectorDotProduct(residuum, residuum, numberOfInnerGridPoints);//delt1=rt*r
+            double a = delta0 / vectorDotProduct(d, z, numberOfGridPoints); // a = delt0/(dt*z)
+            vectorPlusScaledVector(values, a, d, values, numberOfGridPoints);// u = u+a*d
+            vectorPlusScaledVector(residuum, -a, z, residuum, numberOfGridPoints);//r= r-a*z
+            double delta1 = vectorDotProduct(residuum, residuum, numberOfGridPoints);//delt1=rt*r
             if (sqrt(delta1) <= eps) break; //stop condition: ||r||<=eps
             double b = delta1/delta0; // b= delt1/delt2
-            vectorPlusScaledVector(residuum, b, d, d, numberOfInnerGridPoints); //d= r+b*d
+            vectorPlusScaledVector(residuum, b, d, d, numberOfGridPoints); //d= r+b*d
             delta0 = delta1; //delt0= delt1
         }
     }
@@ -150,7 +149,7 @@ int main(int argc, char* argv[]){
         fileO << "# x y u(x,y)"<< std::endl;
         for (int col = 0; col < nx+1; col++) {
             for (int row = 0; row < ny+1; row++) {
-               //fileO << col*hx << " " << row*hy << " " << values[row*(nx+1) + col] << std::endl;
+               fileO << col*hx << " " << row*hy << " " << values[row*(nx+1) + col] << std::endl;
             }
         }
         fileO.close();
