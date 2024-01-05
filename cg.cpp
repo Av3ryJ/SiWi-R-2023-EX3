@@ -33,7 +33,7 @@ void calculateResidualVector(double *values, double *f, int nx, int ny, double a
     for (int row = 1; row < ny; row++) {
         for (int col = 1; col < nx; col++) {
             //warum result[row-1]?
-            result[row-1] = f[row*nx + col] - alpha*values[row*nx + col]
+            result[row*nx+col] = f[row*nx + col] - alpha*values[row*nx + col]
                             +gamma*values[(col-1) + row*rowlength]
                             +gamma*values[(col+1) + row*rowlength]
                             +beta*values[col + (row-1)*rowlength]
@@ -62,7 +62,7 @@ void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta,
     for (int row = 1; row < ny; row++) {
         for (int col = 1; col < nx; col++) {
             //z[row-1] stimmt glaube nicht
-           z[row-1]= alpha*values[row*nx + col]
+           z[row*nx+col]= alpha*values[row*nx + col]
                             +gamma*values[(col-1) + row*rowlength]
                             +gamma*values[(col+1) + row*rowlength]
                             +beta*values[col + (row-1)*rowlength]
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]){
     int numberOfInnerGridPoints = (nx-1)*(ny-1);
     //Vorfaktoren der Diskretisierung
     double alpha = 2/hx_squared + 2/hy_squared + 4*pi_squared;
-    //Korrektur von A2 gamme & beta vertauscht
+    //Korrektur von A2 gamma & beta vertauscht
     double gamma = 1/hx_squared;
     double beta = 1/hy_squared;
 
