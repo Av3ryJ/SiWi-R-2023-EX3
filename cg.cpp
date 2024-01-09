@@ -30,13 +30,14 @@ void initialize(int nx, int ny, double *v, double hx){
 
 void calculateResidualVector(double *values, double *f, int nx, int ny, double alpha, double beta, double gamma, double *result) {
     int rowlength = nx+1;
-    for (int row = 0; row <= ny; row++) {
-        for (int col = 0; col <= nx; col++) {
-            if (row == 0 || row == ny || col == 0 || col == nx) result[row*rowlength+col] = 0;
-            else result[row*rowlength+col] = f[row*rowlength + col] 
-                    -alpha*values[row*rowlength + col] + gamma*values[(col-1) + row*rowlength]
-                    +gamma*values[(col+1) + row*rowlength] + beta*values[col + (row-1)*rowlength]
-                    +beta*values[col + (row+1)*rowlength];
+    for (int row = 1; row <= ny-1; row++) {
+        for (int col = 1; col <= nx-1; col++) {
+            result[row*rowlength+col] = f[row*rowlength + col]
+                    -alpha*values[row*rowlength + col]
+                    -gamma*values[(col-1) + row*rowlength]
+                    -gamma*values[(col+1) + row*rowlength]
+                    -beta*values[col + (row-1)*rowlength]
+                    -beta*values[col + (row+1)*rowlength];
         }
     }
 }
@@ -89,8 +90,8 @@ int main(int argc, char* argv[]){
     //Vorfaktoren der Diskretisierung
     double alpha = 2/hx_squared + 2/hy_squared + 4*pi_squared;
     //Korrektur von A2 gamma & beta vertauscht
-    double gamma = 1/hx_squared;
-    double beta = 1/hy_squared;
+    double gamma = -1/hx_squared;
+    double beta = -1/hy_squared;
 
     //Gitter mit Werten und Rand
     double *values = new double[numberOfGridPoints];
@@ -100,7 +101,7 @@ int main(int argc, char* argv[]){
     double *f= new double[numberOfGridPoints];
     for(int y=0; y<=ny; y++){
         for(int x=0; x<=nx; x++){
-            f[y*(nx+1)+x]= 4*pi_squared*sin(2*M_PI*x*hx)*sinh(2*M_PI*y*hy); 
+            f[y*(nx+1)+x]= 4*pi_squared*sin(2*M_PI*x*hx)*sinh(2*M_PI*y*hy);
         }
     }
 
@@ -125,6 +126,7 @@ int main(int argc, char* argv[]){
             vectorPlusScaledVector(residuum, -a, z, residuum, numberOfGridPoints);//r= r-a*z
             double delta1 = vectorDotProduct(residuum, residuum, numberOfGridPoints);//delt1=rt*r
             if (sqrt(delta1) <= eps) break; //stop condition: ||r||<=eps
+            std::cout << sqrt(delta1) << std::endl;
             double b = delta1/delta0; // b= delt1/delt2
             vectorPlusScaledVector(residuum, b, d, d, numberOfGridPoints); //d= r+b*d
             delta0 = delta1; //delt0= delt1
