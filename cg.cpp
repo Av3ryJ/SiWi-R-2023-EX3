@@ -126,7 +126,6 @@ int main(int argc, char* argv[]){
             vectorPlusScaledVector(residuum, -a, z, residuum, numberOfGridPoints);//r= r-a*z
             double delta1 = vectorDotProduct(residuum, residuum, numberOfGridPoints);//delt1=rt*r
             if (sqrt(delta1) <= eps) break; //stop condition: ||r||<=eps
-            std::cout << sqrt(delta1) << std::endl;
             double b = delta1/delta0; // b= delt1/delt2
             vectorPlusScaledVector(residuum, b, d, d, numberOfGridPoints); //d= r+b*d
             delta0 = delta1; //delt0= delt1
