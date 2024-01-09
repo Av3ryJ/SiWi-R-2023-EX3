@@ -2,7 +2,9 @@
 #include <iostream>
 #include <fstream>
 #include "Timer.h"
-
+#include <mpi.h>
+#include <chrono>
+#include <thread>
 
 //Ausgabe der Matrix zur Überprüfung
 void print_matrix(int nx, int ny, double *v) {
@@ -69,7 +71,19 @@ void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta,
     }
 }
 
-int main(int argc, char* argv[]){
+void devide(){//int ny, int *first_row, int *number_of_rows) {
+
+    //std::cout << "This is Process: " << pid << " of " << n_processes << std::endl;
+}
+
+int main(int argc, char* argv[]) {
+    // MPI init and save own pid and number of processes for later
+    MPI_Init(&argc, &argv);
+    int total_number_of_processes;
+    MPI_Comm_size(MPI_COMM_WORLD, &total_number_of_processes);
+    int pid;
+    MPI_Comm_rank(MPI_COMM_WORLD, &pid);
+
     if (argc < 5) {
         std::cout << "Usage: (mpirun -np <N>) ./cg <nx> <ny> <c> <eps>" << std::endl;
         return -1;
@@ -104,38 +118,65 @@ int main(int argc, char* argv[]){
             f[y*(nx+1)+x]= 4*pi_squared*sin(2*M_PI*x*hx)*sinh(2*M_PI*y*hy);
         }
     }
+    // wait for all to finish startup
+    MPI_Barrier(MPI_COMM_WORLD);
 
     //Timing start
     double time = 100.0;
     siwir::Timer timer;
+    int cg_iterations = c;
 
     //Berechnung...
-    double* residuum = new double[numberOfGridPoints]; 
+    double* residuum = new double[numberOfGridPoints];
     calculateResidualVector(values, f, nx, ny, alpha, beta, gamma, residuum);//r=f-A*u
+
     double delta0 = vectorDotProduct(residuum, residuum, numberOfGridPoints); //delt0= rt*r
+
     if (sqrt(delta0) > eps) { // Stop condition: ||r||<= eps
+        //d=r
         double* d = new double[numberOfGridPoints];
         for (int i = 0; i < numberOfGridPoints; i++) {
             d[i] = residuum[i];
-        } //d=r
-        for (int count = 0; count < c; count++) { //iterations
+        }
+        for (int iteration = 0; iteration < c; iteration++) { //iterations
+
             double* z =  new double[numberOfGridPoints];
-            stencilVectorMul(d, nx,ny, alpha, beta, gamma, z ); //z= A*d
-            double a = delta0 / vectorDotProduct(d, z, numberOfGridPoints); // a = delt0/(dt*z)
-            vectorPlusScaledVector(values, a, d, values, numberOfGridPoints);// u = u+a*d
-            vectorPlusScaledVector(residuum, -a, z, residuum, numberOfGridPoints);//r= r-a*z
-            double delta1 = vectorDotProduct(residuum, residuum, numberOfGridPoints);//delt1=rt*r
-            if (sqrt(delta1) <= eps) break; //stop condition: ||r||<=eps
-            double b = delta1/delta0; // b= delt1/delt2
-            vectorPlusScaledVector(residuum, b, d, d, numberOfGridPoints); //d= r+b*d
-            delta0 = delta1; //delt0= delt1
+            // z = A*d
+            stencilVectorMul(d, nx,ny, alpha, beta, gamma, z);
+            // a = delt0/(dt*z)
+            double a = delta0 / vectorDotProduct(d, z, numberOfGridPoints); //TODO: Communicate dt * z(subset) to all processes
+            // u = u+a*d
+            vectorPlusScaledVector(values, a, d, values, numberOfGridPoints);
+            // r = r-a*z
+            vectorPlusScaledVector(residuum, -a, z, residuum, numberOfGridPoints);
+            //TODO: communicate r (maybe u?)
+            // delta1 = rt * r
+            double delta1 = vectorDotProduct(residuum, residuum, numberOfGridPoints);
+            // stop condition: ||r||<=eps
+            if (sqrt(delta1) <= eps) { //TODO: synced break needed
+                cg_iterations = iteration;
+                break;
+            }
+            // b = delta1/delta0
+            double b = delta1/delta0;
+            // d = r+b*d
+            vectorPlusScaledVector(residuum, b, d, d, numberOfGridPoints);
+            // delta0 = delta1
+            delta0 = delta1;
+            //TODO: communicate delta and d
         }
     }
 
     //Timing stoppen & ausgeben
     time = std::min(time, timer.elapsed());
-    std::cout << time << std::endl;
+    if(pid==0){
+        std::cout << time << std::endl;
+        std::cout << cg_iterations << std::endl;
+        std::cout << sqrt(delta1) << std::endl;
 
+    }
+
+    MPI_Finalize();
     //Norm berechnen
     //double residual = calculateResidual(...);
     //std::cout << std::endl << "L2 Norm of the residual = " << residual << std::endl;
