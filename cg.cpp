@@ -71,9 +71,9 @@ void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta,
     }
 }
 
-void devide(){//int ny, int *first_row, int *number_of_rows) {
-
-    //std::cout << "This is Process: " << pid << " of " << n_processes << std::endl;
+void devide(int numberOfGridpoints, int pid, int N_P, int &first_row, int &number_of_rows) {
+    number_of_rows = (numberOfGridpoints / N_P) + (pid == N_P-1 ? numberOfGridpoints % N_P : 0);
+    first_row = pid * (int) (numberOfGridpoints / N_P);
 }
 
 int main(int argc, char* argv[]) {
@@ -121,6 +121,11 @@ int main(int argc, char* argv[]) {
     // wait for all to finish startup
     MPI_Barrier(MPI_COMM_WORLD);
 
+    int first;
+    int len;
+    devide(numberOfGridPoints, pid, total_number_of_processes, first, len);
+    std::cout << "PID: " << pid << " first: " << first << " len: " << len << std::endl;
+
     //Timing start
     double time = 100.0;
     siwir::Timer timer;
@@ -138,32 +143,44 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < numberOfGridPoints; i++) {
             d[i] = residuum[i];
         }
+        //TODO: residuum neu allokieren in "Streifen"-Größe
         for (int iteration = 0; iteration < c; iteration++) { //iterations
 
             double* z =  new double[numberOfGridPoints];
             // z = A*d
             stencilVectorMul(d, nx,ny, alpha, beta, gamma, z);
             // a = delt0/(dt*z)
-            double a = delta0 / vectorDotProduct(d, z, numberOfGridPoints); //TODO: Communicate dt * z(subset) to all processes
+            double a_zwischenergebnis = vectorDotProduct(d, z, numberOfGridPoints);
+            //TODO: broadcast my 'zwischenergebnis' to all other processes
+            //TODO: gather all zwischenergebnisse and add them up
+            //      zwischenergebnis += irecive...
+            double a = delta0 / a_zwischenergebnis;
             // u = u+a*d
             vectorPlusScaledVector(values, a, d, values, numberOfGridPoints);
-            // r = r-a*z
+            // r = r-a*z // each processes only calculates a part of r
             vectorPlusScaledVector(residuum, -a, z, residuum, numberOfGridPoints);
-            //TODO: communicate r (maybe u?)
+            //TODO: communicate u
+
             // delta1 = rt * r
             double delta1 = vectorDotProduct(residuum, residuum, numberOfGridPoints);
+            //TODO: broadcast own delta1 sub-sum
+            //TODO: gather delta1 sub-sums
+            //      delta1 += irecv...
+
             // stop condition: ||r||<=eps
-            if (sqrt(delta1) <= eps) { //TODO: synced break needed
+            if (sqrt(delta1) <= eps) {
                 cg_iterations = iteration;
+                delta0 = delta1;
                 break;
             }
             // b = delta1/delta0
             double b = delta1/delta0;
             // d = r+b*d
             vectorPlusScaledVector(residuum, b, d, d, numberOfGridPoints);
+            //TODO: d zusammenkleben msg_id = start index
+
             // delta0 = delta1
             delta0 = delta1;
-            //TODO: communicate delta and d
         }
     }
 
@@ -172,11 +189,8 @@ int main(int argc, char* argv[]) {
     if(pid==0){
         std::cout << time << std::endl;
         std::cout << cg_iterations << std::endl;
-        std::cout << sqrt(delta1) << std::endl;
+        std::cout << sqrt(delta0) << std::endl;
 
-    }
-
-    MPI_Finalize();
     //Norm berechnen
     //double residual = calculateResidual(...);
     //std::cout << std::endl << "L2 Norm of the residual = " << residual << std::endl;
@@ -188,11 +202,13 @@ int main(int argc, char* argv[]) {
     
     //x und y Werte müssen in dem definierten Bereich liegen -> [0,1] und[0,2]
     std::ofstream fileO ("solution.txt");
-        fileO << "# x y u(x,y)"<< std::endl;
-        for (int col = 0; col < nx+1; col++) {
-            for (int row = 0; row < ny+1; row++) {
-               fileO << col*hx << " " << row*hy << " " << values[row*(nx+1) + col] << std::endl;
-            }
+    fileO << "# x y u(x,y)"<< std::endl;
+    for (int col = 0; col < nx+1; col++) {
+        for (int row = 0; row < ny+1; row++) {
+            fileO << col*hx << " " << row*hy << " " << values[row*(nx+1) + col] << std::endl;
         }
-        fileO.close();
+    }
+    fileO.close();
+    }
+    MPI_Finalize();
 }
