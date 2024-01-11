@@ -3,4 +3,33 @@ compile: make TARGET=MPI_HelloWorld
 
 run: mpirun -np {numProcesses} ./MPI_HelloWorld
 
+#The Conjugate Gradient Method and MPI Parallelization
+
+### Aufruf
+Zur Ausführung muss zunächst 'module load intelmpi' gemacht werden
+Nach erfolgreichem make, kann das Programm wie folgt aufgerufen werden
+mpirun -np N ./cg nx ny c eps
+mit 
+N= Anzahl der gewünschten Prozesse
+nx = Anzahl der Intervalle in x-Richtung
+ny = Anzahl der Interalle in y-Richtung
+c= Anzahl der maximalen CG-Iterationen 
+eps = Residuums Grenze zur frühzeitigen Abbruchsmöglichkeit der Iterationen
+
+###Achtung: 
+nx und ny geben die Anzahl der Intervalle an, das Gitter besteht also aus
+(nx+1) Punkten in x-Richtung und (ny+1) Punkten in y-Richtung.
+Insgesamt hat das Gitter damit (nx+1)*(ny+1) Punkte.
+Der Rand wird vor Beginn der Berechnung mit Werten initialisiert, 
+die in der Berechnung nicht mehr verändert werden
+
+###Ausgabe
+Auf der Konsole wird am Ende zum einen die Zeit, die das Programm zur Berechnung
+braucht, ausgegeben. Desweiteren wird die Anzahl der benötigten Iterationen im CG-Verfahren
+und die L2-Norm des endgültigen Residuums ausgegeben. Wurde als Epsilon ein negativer Wert übergeben, wird
+die Anzahl der benötigten CG-Iterationen der übergebenen maximalen Iterationsanzahl c entsprechen.
+
+Es entsteht zudem eine Ausgabe Datei solution.txt, in der die jeweiligen Lösungswerte für die Stelle (x,y) stehen.
+Man kann diese mit Hilfe der splot Funktion von gnuplit visualisieren.
+
 
