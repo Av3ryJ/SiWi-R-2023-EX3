@@ -44,12 +44,18 @@ void calculateResidualVector(double *values, double *f, int nx, int ny, double a
     }
 }
 
-double vectorDotProduct(double* vec1, double* vec2, int length) {
+double vectorDotProduct(double* vec1, double* vec2, int length, int start) {
     double sum = 0;
-    for (int i = 0; i < length; i++) {
+    for (int i = start; i < start+length; i++) {
         sum += vec1[i]*vec2[i];
     }
     return sum;
+}
+
+double allreduce_vectorDotProduct(double value_to_send) {
+    double result;
+    MPI_Allreduce(&value_to_send, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    return result;
 }
 
 void vectorPlusScaledVector(double *vec1, double scalingFactor, double *vec2, double *outVec, int length) {
@@ -58,9 +64,9 @@ void vectorPlusScaledVector(double *vec1, double scalingFactor, double *vec2, do
     }
 }
 
-void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta, double gamma, double *z){
+void stencilVectorMul(double* values, int nx, double alpha, double beta, double gamma, double *z, int start_index, int length){
     int rowlength = nx+1;
-    for (int row = 1; row < ny; row++) {
+    for (int row = start_index; row < start_index+length; row++) {
         for (int col = 1; col < nx; col++) {
            z[row*rowlength+col]= alpha*values[row*rowlength + col]
                                     +gamma*values[(col-1) + row*rowlength]
@@ -71,9 +77,14 @@ void stencilVectorMul(double* values, int nx, int ny, double alpha, double beta,
     }
 }
 
-void devide(int numberOfGridpoints, int pid, int N_P, int &first_row, int &number_of_rows) {
-    number_of_rows = (numberOfGridpoints / N_P) + (pid == N_P-1 ? numberOfGridpoints % N_P : 0);
-    first_row = pid * (int) (numberOfGridpoints / N_P);
+void devide(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
+    number_of_rows = (rows / N_P) + (pid == N_P - 1 ? rows % N_P : 0);
+    first_row = pid * (int) (rows / N_P);
+    if (pid == 0) {
+        first_row++;
+        number_of_rows--;
+    }
+    if (pid == N_P-1) number_of_rows--;
 }
 
 int main(int argc, char* argv[]) {
@@ -121,21 +132,23 @@ int main(int argc, char* argv[]) {
     // wait for all to finish startup
     MPI_Barrier(MPI_COMM_WORLD);
 
-    int first;
-    int len;
-    devide(numberOfGridPoints, pid, total_number_of_processes, first, len);
-    std::cout << "PID: " << pid << " first: " << first << " len: " << len << std::endl;
 
     //Timing start
     double time = 100.0;
     siwir::Timer timer;
     int cg_iterations = c;
 
+    //get process specific indices
+    int first_index;
+    int p_row_number;
+    devide(ny+1, pid, total_number_of_processes, first_index, p_row_number);
+    int len_p = p_row_number*(nx+1);
+
     //Berechnung...
     double* residuum = new double[numberOfGridPoints];
     calculateResidualVector(values, f, nx, ny, alpha, beta, gamma, residuum);//r=f-A*u
 
-    double delta0 = vectorDotProduct(residuum, residuum, numberOfGridPoints); //delt0= rt*r
+    double delta0 = vectorDotProduct(residuum, residuum, numberOfGridPoints, 0); //delt0= rt*r
 
     if (sqrt(delta0) > eps) { // Stop condition: ||r||<= eps
         //d=r
@@ -143,29 +156,29 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < numberOfGridPoints; i++) {
             d[i] = residuum[i];
         }
-        //TODO: residuum neu allokieren in "Streifen"-Größe
         for (int iteration = 0; iteration < c; iteration++) { //iterations
 
-            double* z =  new double[numberOfGridPoints];
             // z = A*d
-            stencilVectorMul(d, nx,ny, alpha, beta, gamma, z);
+            double* z =  new double[numberOfGridPoints];
+            stencilVectorMul(d, nx, alpha, beta, gamma, z,first_index, p_row_number);
+
             // a = delt0/(dt*z)
-            double a_zwischenergebnis = vectorDotProduct(d, z, numberOfGridPoints);
-            //TODO: broadcast my 'zwischenergebnis' to all other processes
-            //TODO: gather all zwischenergebnisse and add them up
-            //      zwischenergebnis += irecive...
+            double a_zwischenergebnis = vectorDotProduct(d, z, len_p, first_index);
+            a_zwischenergebnis = allreduce_vectorDotProduct(a_zwischenergebnis);
             double a = delta0 / a_zwischenergebnis;
-            // u = u+a*d
+
+            // values = values+a*d
             vectorPlusScaledVector(values, a, d, values, numberOfGridPoints);
+            //TODO: communicate values only speedup not necessary
+
             // r = r-a*z // each processes only calculates a part of r
             vectorPlusScaledVector(residuum, -a, z, residuum, numberOfGridPoints);
-            //TODO: communicate u
 
             // delta1 = rt * r
-            double delta1 = vectorDotProduct(residuum, residuum, numberOfGridPoints);
-            //TODO: broadcast own delta1 sub-sum
-            //TODO: gather delta1 sub-sums
-            //      delta1 += irecv...
+            double delta1 = vectorDotProduct(residuum, residuum, len_p, first_index);
+            //broadcast own delta1 sub-sum
+            //gather delta1 sub-sums
+            delta1 = allreduce_vectorDotProduct(delta1);
 
             // stop condition: ||r||<=eps
             if (sqrt(delta1) <= eps) {
