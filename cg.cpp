@@ -87,7 +87,7 @@ void devide(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
     if (pid == N_P-1) number_of_rows--;
 }
 
-void stitch_vector(double *vector, int own_start, int own_length, int N_P, int pid, int ny) {
+void stitch_vector(double *vector, int own_start, int own_length, int N_P, int pid, int ny, int nx) {
     //Receive other vectors and stitch into vector
     for (int process = 0; process < N_P; process++) {
         //nothing to receive from self:
@@ -95,7 +95,7 @@ void stitch_vector(double *vector, int own_start, int own_length, int N_P, int p
         int sender_len;
         int sender_start;
         devide(ny+1, process, N_P, sender_start, sender_len);
-        MPI_Bcast(vector+sender_start, sender_len, MPI_DOUBLE, process, MPI_COMM_WORLD);
+        MPI_Bcast(vector+sender_start, sender_len*(nx+1), MPI_DOUBLE, process, MPI_COMM_WORLD);
         // std::cout << "Process " << pid << ": Broadcast Received" << std::endl;
     }
 }
@@ -180,6 +180,7 @@ int main(int argc, char* argv[]) {
             a_zwischenergebnis = allreduce_vectorDotProduct(a_zwischenergebnis);
             // std::cout << "nach erstem allreduce" << std::endl;
             double a = delta0 / a_zwischenergebnis;
+            std::cout << "Alpha = " << a << std::endl;
 
             // values = values+a*d
             vectorPlusScaledVector(values, a, d, values, 0, numberOfGridPoints);
@@ -206,11 +207,11 @@ int main(int argc, char* argv[]) {
             // d = r+b*d // only part from first_index to len_p is updated
             vectorPlusScaledVector(residuum, b, d, d, first_index, len_p);
             //d zusammenkleben msg_id = start index
-            stitch_vector(d, first_index, len_p, total_number_of_processes, pid, ny);
+            stitch_vector(d, first_index, len_p, total_number_of_processes, pid, ny, nx);
             //std::cout << "nach stitch" << std::endl;
             // delta0 = delta1
             delta0 = delta1;
-            std::cout << "R after " << iteration << "Iterations" << sqrt(delta1) << std::endl;
+            std::cout << "R after " << iteration << " Iterations " << sqrt(delta1) << std::endl;
         }
     }
 
