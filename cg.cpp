@@ -88,27 +88,16 @@ void devide(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
 }
 
 void stitch_vector(double *vector, int own_start, int own_length, int N_P, int pid, int ny) {
-    //Bcast own vector to all other processes (async)
-    std::cout << "Starting bcast from: " << pid << std::endl;
-    MPI_Request broadcast;
-    MPI_Ibcast(vector+own_start, own_length, MPI_DOUBLE, pid, MPI_COMM_WORLD, &broadcast);
-    std::cout << "Bcast complete from: " << pid << std::endl;
     //Receive other vectors and stitch into vector
     for (int process = 0; process < N_P; process++) {
         //nothing to receive from self:
-        if (process == pid) continue;
-        std::cout << "Starting to recieve from " << process << std::endl;
+        if (pid == process) std::cout << "Process " << process << "is broadcasting..." << std::endl;
         int sender_len;
         int sender_start;
         devide(ny+1, process, N_P, sender_start, sender_len);
-        //receive from process
-        MPI_Recv(vector+sender_start, sender_len, MPI_DOUBLE, process, MPI_ANY_TAG, MPI_COMM_WORLD, NULL);
-        std::cout << "Recevied from: " << process << std::endl;
+        MPI_Bcast(vector+sender_start, sender_len, MPI_DOUBLE, process, MPI_COMM_WORLD);
+        std::cout << "Process " << pid << ": Broadcast Received" << std::endl;
     }
-    //wait for bcast
-    std::cout << pid << " is Waiting" << std::endl;
-    MPI_Wait(&broadcast, MPI_STATUS_IGNORE);
-    std::cout << pid << " finished Waiting" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
