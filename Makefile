@@ -15,5 +15,5 @@ $(TARGET): $(TARGET).cpp Makefile
 
 
 clean:
-	@$(RM) -rf  $(TARGET)
+	rm -rf  $(TARGET)
 

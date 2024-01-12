@@ -6,7 +6,7 @@ binary = "./cg"
 thread_numbers = [1, 2, 5, 10, 20, 40, 60]
 number_of_iterations = 100
 eps = -1
-nxy = 100
+nxy = 4096
 
 json_path = "times.json"
 time_json = {thread: 0.0 for thread in thread_numbers}

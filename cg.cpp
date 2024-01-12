@@ -81,27 +81,28 @@ void devide(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
     number_of_rows = (rows / N_P) + (pid == N_P - 1 ? rows % N_P : 0);
     first_row = pid * (int) (rows / N_P);
     if (pid == 0) {
+        //to avoid boundary
         first_row++;
         number_of_rows--;
     }
+    //to avoid boundary
     if (pid == N_P-1) number_of_rows--;
 }
 
 void devide_for_stitching(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
     number_of_rows = (rows / N_P) + (pid == N_P - 1 ? rows % N_P : 0);
     first_row = pid * (int) (rows / N_P);
+    //now boundary is needed
 }
 
-void stitch_vector(double *vector, int own_start, int own_length, int N_P, int pid, int ny, int nx) {
+void stitch_vector(double *vector, int N_P, int ny, int nx) {
     //Receive other vectors and stitch into vector
     for (int process = 0; process < N_P; process++) {
         //nothing to receive from self:
-        // if (pid == process) std::cout << "Process " << process << "is broadcasting..." << std::endl;
         int sender_len;
         int sender_start;
         devide_for_stitching(ny+1, process, N_P, sender_start, sender_len);
         MPI_Bcast(vector+sender_start*(nx+1), sender_len*(nx+1), MPI_DOUBLE, process, MPI_COMM_WORLD);
-        // std::cout << "Process " << pid << ": Broadcast Received" << std::endl;
     }
 }
 
@@ -123,9 +124,9 @@ int main(int argc, char* argv[]) {
     int c = atoi(argv[3]);
     double eps = atof(argv[4]);
 
-    // nx und ny gibt Anzahl der Intervalle an, die entstehen -> es gibt nx+1 & ny+1 Punkte in jede Richtung
-    double hx = 2.0/nx; // lenght of one intervall in x-direction
-    double hy = 1.0/ny; // lenght of one intervall in y-direction
+    // nx und ny gibt Anzahl der Intervalle an, die entstehen → es gibt nx+1 & ny+1 Punkte in jede Richtung
+    double hx = 2.0/nx; // length of one intervall in x-direction
+    double hy = 1.0/ny; // length of one intervall in y-direction
     double hx_squared = hx*hx;
     double hy_squared = hy*hy;
     double pi_squared = M_PI*M_PI;
@@ -164,9 +165,9 @@ int main(int argc, char* argv[]) {
 
     //Berechnung...
     double* residuum = new double[numberOfGridPoints];
-    calculateResidualVector(values, f, nx, ny, alpha, beta, gamma, residuum);//r=f-A*u
+    calculateResidualVector(values, f, nx, ny, alpha, beta, gamma, residuum);//r=f-A*values
 
-    double delta0 = vectorDotProduct(residuum, residuum, numberOfGridPoints, 0); //delt0= rt*r
+    double delta0 = vectorDotProduct(residuum, residuum, numberOfGridPoints, 0); //delta0= rt*r
 
     if (sqrt(delta0) > eps) { // Stop condition: ||r||<= eps
         //d=r
@@ -175,15 +176,15 @@ int main(int argc, char* argv[]) {
             d[i] = residuum[i];
         }
         for (int iteration = 0; iteration < c; iteration++) { //iterations
-
+            //each process only calculates a part of z
             // z = A*d
             double* z =  new double[numberOfGridPoints];
             stencilVectorMul(d, nx, alpha, beta, gamma, z,first_index, p_row_number);
 
-            // a = delt0/(dt*z)
+            //only part of z -> part of a -> needs communication
+            // a = delta0/(dt*z)
             double a_zwischenergebnis = vectorDotProduct(d, z, len_p, first_index*(nx+1));
             a_zwischenergebnis = allreduce_vectorDotProduct(a_zwischenergebnis);
-            // std::cout << "nach erstem allreduce" << std::endl;
             double a = delta0 / a_zwischenergebnis;
 
             // values = values+a*d
@@ -195,10 +196,8 @@ int main(int argc, char* argv[]) {
 
             // delta1 = rt * r
             double delta1 = vectorDotProduct(residuum, residuum, len_p, first_index*(nx+1));
-            //broadcast own delta1 sub-sum
-            //gather delta1 sub-sums
+            //part of -> part of delta1 -> communication
             delta1 = allreduce_vectorDotProduct(delta1);
-            // std::cout << "nach zweitem allreduce" << std::endl;
 
             // stop condition: ||r||<=eps
             if (sqrt(delta1) <= eps) {
@@ -210,12 +209,10 @@ int main(int argc, char* argv[]) {
             double b = delta1/delta0;
             // d = r+b*d // only part from first_index to len_p is updated
             vectorPlusScaledVector(residuum, b, d, d, first_index*(nx+1), len_p);
-            //d zusammenkleben msg_id = start index
-            stitch_vector(d, first_index, len_p, total_number_of_processes, pid, ny, nx);
-            //std::cout << "nach stitch" << std::endl;
+            //d zusammenkleben
+            stitch_vector(d, total_number_of_processes, ny, nx);
             // delta0 = delta1
             delta0 = delta1;
-            //std::cout << "R after " << iteration << " Iterations " << sqrt(delta1) << std::endl;
         }
     }
 
@@ -224,18 +221,15 @@ int main(int argc, char* argv[]) {
     if(pid==0){
         std::cout << time << std::endl;
         std::cout << cg_iterations << std::endl;
+        //sqrt(delta0) = L2-Norm of residual
         std::cout << sqrt(delta0) << std::endl;
 
-        //Norm berechnen
-        //double residual = calculateResidual(...);
-        //std::cout << std::endl << "L2 Norm of the residual = " << residual << std::endl;
-
-        // fuer gnuplot muss das so aussehen --> Funktion schreiben, die solution.txt so schreibt
+        // fuer gnuplot muss das so aussehen → Funktion schreiben, die solution.txt so schreibt
         // # x y u(x,y)
         //  0 0 0
         // .. .. ..
 
-        //x und y Werte müssen in dem definierten Bereich liegen -> [0,1] und[0,2]
+        //x und y Werte müssen in dem definierten Bereich liegen → [0,1] und[0,2]
         std::ofstream fileO ("solution.txt");
         fileO << "# x y u(x,y)"<< std::endl;
         for (int col = 0; col < nx+1; col++) {
