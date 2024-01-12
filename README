@@ -30,6 +30,6 @@ und die L2-Norm des endgültigen Residuums ausgegeben. Wurde als Epsilon ein neg
 die Anzahl der benötigten CG-Iterationen der übergebenen maximalen Iterationsanzahl c entsprechen.
 
 Es entsteht zudem eine Ausgabe Datei solution.txt, in der die jeweiligen Lösungswerte für die Stelle (x,y) stehen.
-Man kann diese mit Hilfe der splot Funktion von gnuplit visualisieren.
+Man kann diese mit Hilfe der splot Funktion von gnuplot visualisieren.
 
 
