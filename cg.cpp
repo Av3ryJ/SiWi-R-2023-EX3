@@ -87,6 +87,11 @@ void devide(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
     if (pid == N_P-1) number_of_rows--;
 }
 
+void devide_for_stitching(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
+    number_of_rows = (rows / N_P) + (pid == N_P - 1 ? rows % N_P : 0);
+    first_row = pid * (int) (rows / N_P);
+}
+
 void stitch_vector(double *vector, int own_start, int own_length, int N_P, int pid, int ny, int nx) {
     //Receive other vectors and stitch into vector
     for (int process = 0; process < N_P; process++) {
@@ -94,7 +99,7 @@ void stitch_vector(double *vector, int own_start, int own_length, int N_P, int p
         // if (pid == process) std::cout << "Process " << process << "is broadcasting..." << std::endl;
         int sender_len;
         int sender_start;
-        devide(ny+1, process, N_P, sender_start, sender_len);
+        devide_for_stitching(ny+1, process, N_P, sender_start, sender_len);
         MPI_Bcast(vector+sender_start*(nx+1), sender_len*(nx+1), MPI_DOUBLE, process, MPI_COMM_WORLD);
         // std::cout << "Process " << pid << ": Broadcast Received" << std::endl;
     }
