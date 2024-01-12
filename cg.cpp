@@ -91,12 +91,12 @@ void stitch_vector(double *vector, int own_start, int own_length, int N_P, int p
     //Receive other vectors and stitch into vector
     for (int process = 0; process < N_P; process++) {
         //nothing to receive from self:
-        if (pid == process) std::cout << "Process " << process << "is broadcasting..." << std::endl;
+        // if (pid == process) std::cout << "Process " << process << "is broadcasting..." << std::endl;
         int sender_len;
         int sender_start;
         devide(ny+1, process, N_P, sender_start, sender_len);
         MPI_Bcast(vector+sender_start, sender_len, MPI_DOUBLE, process, MPI_COMM_WORLD);
-        std::cout << "Process " << pid << ": Broadcast Received" << std::endl;
+        // std::cout << "Process " << pid << ": Broadcast Received" << std::endl;
     }
 }
 
@@ -178,7 +178,7 @@ int main(int argc, char* argv[]) {
             // a = delt0/(dt*z)
             double a_zwischenergebnis = vectorDotProduct(d, z, len_p, first_index);
             a_zwischenergebnis = allreduce_vectorDotProduct(a_zwischenergebnis);
-            std::cout << "nach erstem allreduce" << std::endl;
+            // std::cout << "nach erstem allreduce" << std::endl;
             double a = delta0 / a_zwischenergebnis;
 
             // values = values+a*d
@@ -193,7 +193,7 @@ int main(int argc, char* argv[]) {
             //broadcast own delta1 sub-sum
             //gather delta1 sub-sums
             delta1 = allreduce_vectorDotProduct(delta1);
-            std::cout << "nach zweitem allreduce" << std::endl;
+            // std::cout << "nach zweitem allreduce" << std::endl;
 
             // stop condition: ||r||<=eps
             if (sqrt(delta1) <= eps) {
@@ -207,9 +207,10 @@ int main(int argc, char* argv[]) {
             vectorPlusScaledVector(residuum, b, d, d, first_index, len_p);
             //d zusammenkleben msg_id = start index
             stitch_vector(d, first_index, len_p, total_number_of_processes, pid, ny);
-            std::cout << "nach stitch" << std::endl;
+            //std::cout << "nach stitch" << std::endl;
             // delta0 = delta1
             delta0 = delta1;
+            std::cout << "R after " << iteration << "Iterations" << sqrt(delta1) << std::endl;
         }
     }
 
