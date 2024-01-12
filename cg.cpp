@@ -215,7 +215,7 @@ int main(int argc, char* argv[]) {
             //std::cout << "nach stitch" << std::endl;
             // delta0 = delta1
             delta0 = delta1;
-            std::cout << "R after " << iteration << " Iterations " << sqrt(delta1) << std::endl;
+            //std::cout << "R after " << iteration << " Iterations " << sqrt(delta1) << std::endl;
         }
     }
 

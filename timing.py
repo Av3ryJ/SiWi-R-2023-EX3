@@ -6,14 +6,14 @@ binary = "./cg"
 thread_numbers = [1, 2, 5, 10, 20, 40, 60]
 number_of_iterations = 100
 eps = -1
-nxy = 4096
+nxy = 100
 
 json_path = "times.json"
 time_json = {thread: 0.0 for thread in thread_numbers}
 
 
 def run_bin(threads):
-    result = subprocess.run(["mpirun", "-np", threads, binary, nxy, nxy, number_of_iterations, eps], capture_output=True, text=True)
+    result = subprocess.run(["mpirun", "-np", str(threads), binary, str(nxy), str(nxy), str(number_of_iterations), str(eps)], capture_output=True, text=True)
     return result.stdout
 
 
@@ -22,7 +22,7 @@ def time_all():
     for thread_num in thread_numbers:
         print(f"running: {thread_num}")
         returned = run_bin(str(thread_num))
-        time = float(returned)
+        time = float(returned.split()[0])
         print(f"time was: {time}")
         time_json[thread_num] = time
     with open(json_path, 'w') as f:
