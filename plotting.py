@@ -3,31 +3,27 @@ import numpy as np
 import os.path as p
 import json
 
-thread_numbers = [1, 2, 5, 10, 20, 40, 60]
+thread_numbers = [1, 2, 5, 10, 20, 40, 60, 80]
 
 json_path = "times.json"
 time_json = {thread: 0.0 for thread in thread_numbers}
 
 
-def get_array_for_size(size: int):
+def get_array():
     out = []
     for thread in thread_numbers:
-        out.append(time_json[str(size)][str(thread)])
+        out.append(time_json[str(thread)])
     return out
 
 
 def plot_all():
-    pass
-    """for size in sizes_to_time:
-        times = get_array_for_size(size)
-        plt.plot(thread_numbers, times[0]/np.array(times), label=f"{size}")
+    times = get_array()
+    plt.plot(thread_numbers, times[0]/(np.array(times)*np.array(thread_numbers)))
 
-    plt.title("Speedup for different sizes and threads")
-    plt.xlabel("Number of threads")
-    plt.ylabel("Speedup")
-    plt.legend(loc="upper left")
-    plt.show()"""
-
+    plt.title("Parallel efficiency for n processes")
+    plt.xlabel("Number of processes")
+    plt.ylabel("parallel efficiency")
+    plt.show()
 
 if __name__ == '__main__':
     if p.exists(json_path):
