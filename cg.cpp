@@ -95,7 +95,7 @@ void stitch_vector(double *vector, int own_start, int own_length, int N_P, int p
         int sender_len;
         int sender_start;
         devide(ny+1, process, N_P, sender_start, sender_len);
-        MPI_Bcast(vector+sender_start, sender_len*(nx+1), MPI_DOUBLE, process, MPI_COMM_WORLD);
+        MPI_Bcast(vector+sender_start*(nx+1), sender_len*(nx+1), MPI_DOUBLE, process, MPI_COMM_WORLD);
         // std::cout << "Process " << pid << ": Broadcast Received" << std::endl;
     }
 }
