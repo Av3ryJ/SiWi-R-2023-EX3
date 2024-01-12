@@ -100,7 +100,8 @@ void stich_vector(double &vector, int own_start, int own_length, int N_P, int pi
         //receive from process
         MPI_Recv(vector+sender_start, sender_len, MPI_DOUBLE, process, MPI_ANY_TAG, MPI_COMM_WORLD, NULL);
     }
-
+    //wait for bcast
+    MPI_Wait(&broadcast, MPI_STATUS_IGNORE);
 }
 
 int main(int argc, char* argv[]) {
