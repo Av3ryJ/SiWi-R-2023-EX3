@@ -58,8 +58,8 @@ double allreduce_vectorDotProduct(double value_to_send) {
     return result;
 }
 
-void vectorPlusScaledVector(double *vec1, double scalingFactor, double *vec2, double *outVec, int length) {
-    for (int i = 0; i < length; i++) {
+void vectorPlusScaledVector(double *vec1, double scalingFactor, double *vec2, double *outVec, int start_index, int length) {
+    for (int i = start_index; i < start_index+length; i++) {
         outVec[i] = vec1[i] + scalingFactor*vec2[i];
     }
 }
@@ -85,6 +85,22 @@ void devide(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
         number_of_rows--;
     }
     if (pid == N_P-1) number_of_rows--;
+}
+
+void stich_vector(double &vector, int own_start, int own_length, int N_P, int pid, int ny) {
+    //Bcast own vector to all other processes (async)
+    MPI_Bcast(vector+own_start, own_length, MPI_DOUBLE, pid, MPI_COMM_WORLD);
+    //Receive other vectors and stitch into vector
+    for (int process = 0; process < N_P; process++) {
+        //nothing to receive from self:
+        if (process == pid) continue;
+        int sender_len;
+        int sender_start;
+        devide(ny+1, process, N_P, sender_start, sender_len);
+        //receive from process
+        MPI_Recv(vector+sender_start, sender_len, MPI_DOUBLE, process, MPI_ANY_TAG, MPI_COMM_WORLD, NULL);
+    }
+
 }
 
 int main(int argc, char* argv[]) {
@@ -168,11 +184,11 @@ int main(int argc, char* argv[]) {
             double a = delta0 / a_zwischenergebnis;
 
             // values = values+a*d
-            vectorPlusScaledVector(values, a, d, values, numberOfGridPoints);
+            vectorPlusScaledVector(values, a, d, values, 0, numberOfGridPoints);
             //TODO: communicate values only speedup not necessary
 
             // r = r-a*z // each processes only calculates a part of r
-            vectorPlusScaledVector(residuum, -a, z, residuum, numberOfGridPoints);
+            vectorPlusScaledVector(residuum, -a, z, residuum, first_index, len_p);
 
             // delta1 = rt * r
             double delta1 = vectorDotProduct(residuum, residuum, len_p, first_index);
@@ -188,10 +204,10 @@ int main(int argc, char* argv[]) {
             }
             // b = delta1/delta0
             double b = delta1/delta0;
-            // d = r+b*d
-            vectorPlusScaledVector(residuum, b, d, d, numberOfGridPoints);
-            //TODO: d zusammenkleben msg_id = start index
-
+            // d = r+b*d // only part from first_index to len_p is updated
+            vectorPlusScaledVector(residuum, b, d, d, first_index, len_p);
+            //d zusammenkleben msg_id = start index
+            stich_vector(d, first_index, len_p, total_number_of_processes, pid, ny);
             // delta0 = delta1
             delta0 = delta1;
         }
@@ -204,24 +220,24 @@ int main(int argc, char* argv[]) {
         std::cout << cg_iterations << std::endl;
         std::cout << sqrt(delta0) << std::endl;
 
-    //Norm berechnen
-    //double residual = calculateResidual(...);
-    //std::cout << std::endl << "L2 Norm of the residual = " << residual << std::endl;
+        //Norm berechnen
+        //double residual = calculateResidual(...);
+        //std::cout << std::endl << "L2 Norm of the residual = " << residual << std::endl;
 
-    // fuer gnuplot muss das so aussehen --> Funktion schreiben, die solution.txt so schreibt
-    // # x y u(x,y)
-    //  0 0 0 
-    // .. .. .. 
-    
-    //x und y Werte müssen in dem definierten Bereich liegen -> [0,1] und[0,2]
-    std::ofstream fileO ("solution.txt");
-    fileO << "# x y u(x,y)"<< std::endl;
-    for (int col = 0; col < nx+1; col++) {
-        for (int row = 0; row < ny+1; row++) {
-            fileO << col*hx << " " << row*hy << " " << values[row*(nx+1) + col] << std::endl;
+        // fuer gnuplot muss das so aussehen --> Funktion schreiben, die solution.txt so schreibt
+        // # x y u(x,y)
+        //  0 0 0
+        // .. .. ..
+
+        //x und y Werte müssen in dem definierten Bereich liegen -> [0,1] und[0,2]
+        std::ofstream fileO ("solution.txt");
+        fileO << "# x y u(x,y)"<< std::endl;
+        for (int col = 0; col < nx+1; col++) {
+            for (int row = 0; row < ny+1; row++) {
+                fileO << col*hx << " " << row*hy << " " << values[row*(nx+1) + col] << std::endl;
+            }
         }
-    }
-    fileO.close();
+        fileO.close();
     }
     MPI_Finalize();
 }
