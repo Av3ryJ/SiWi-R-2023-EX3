@@ -181,21 +181,20 @@ int main(int argc, char* argv[]) {
             stencilVectorMul(d, nx, alpha, beta, gamma, z,first_index, p_row_number);
 
             // a = delt0/(dt*z)
-            double a_zwischenergebnis = vectorDotProduct(d, z, len_p, first_index);
+            double a_zwischenergebnis = vectorDotProduct(d, z, len_p, first_index*(nx+1));
             a_zwischenergebnis = allreduce_vectorDotProduct(a_zwischenergebnis);
             // std::cout << "nach erstem allreduce" << std::endl;
             double a = delta0 / a_zwischenergebnis;
-            std::cout << "Alpha = " << a << std::endl;
 
             // values = values+a*d
             vectorPlusScaledVector(values, a, d, values, 0, numberOfGridPoints);
             //TODO: communicate values only speedup not necessary
 
             // r = r-a*z // each processes only calculates a part of r
-            vectorPlusScaledVector(residuum, -a, z, residuum, first_index, len_p);
+            vectorPlusScaledVector(residuum, -a, z, residuum, first_index*(nx+1), len_p);
 
             // delta1 = rt * r
-            double delta1 = vectorDotProduct(residuum, residuum, len_p, first_index);
+            double delta1 = vectorDotProduct(residuum, residuum, len_p, first_index*(nx+1));
             //broadcast own delta1 sub-sum
             //gather delta1 sub-sums
             delta1 = allreduce_vectorDotProduct(delta1);
@@ -210,7 +209,7 @@ int main(int argc, char* argv[]) {
             // b = delta1/delta0
             double b = delta1/delta0;
             // d = r+b*d // only part from first_index to len_p is updated
-            vectorPlusScaledVector(residuum, b, d, d, first_index, len_p);
+            vectorPlusScaledVector(residuum, b, d, d, first_index*(nx+1), len_p);
             //d zusammenkleben msg_id = start index
             stitch_vector(d, first_index, len_p, total_number_of_processes, pid, ny, nx);
             //std::cout << "nach stitch" << std::endl;
