@@ -87,9 +87,10 @@ void devide(int rows, int pid, int N_P, int &first_row, int &number_of_rows) {
     if (pid == N_P-1) number_of_rows--;
 }
 
-void stich_vector(double &vector, int own_start, int own_length, int N_P, int pid, int ny) {
+void stitch_vector(double *vector, int own_start, int own_length, int N_P, int pid, int ny) {
     //Bcast own vector to all other processes (async)
-    MPI_Bcast(vector+own_start, own_length, MPI_DOUBLE, pid, MPI_COMM_WORLD);
+    MPI_Request broadcast;
+    MPI_Ibcast(vector+own_start, own_length, MPI_DOUBLE, pid, MPI_COMM_WORLD, &broadcast);
     //Receive other vectors and stitch into vector
     for (int process = 0; process < N_P; process++) {
         //nothing to receive from self:
@@ -208,7 +209,7 @@ int main(int argc, char* argv[]) {
             // d = r+b*d // only part from first_index to len_p is updated
             vectorPlusScaledVector(residuum, b, d, d, first_index, len_p);
             //d zusammenkleben msg_id = start index
-            stich_vector(d, first_index, len_p, total_number_of_processes, pid, ny);
+            stitch_vector(d, first_index, len_p, total_number_of_processes, pid, ny);
             // delta0 = delta1
             delta0 = delta1;
         }
